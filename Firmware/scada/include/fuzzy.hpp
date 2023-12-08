@@ -15,14 +15,30 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "scada.h"
+#pragma once
 
-void setup()
+namespace scada
 {
-  scada::Entry::instance().setup();
-}
+    class Fuzzy : public Controller
+    {
+    public:
+        Fuzzy();
 
-void loop()
-{
-    scada::Entry::instance().loop();
+    public: /*properties*/
+        virtual ControllerType getType()const;
+        virtual double getOutput()const;
+        virtual double getState(uint32_t index)const;
+        virtual uint32_t getParamCount()const;
+        virtual double getParam(uint32_t index)const;
+        virtual void setParam(uint32_t index, double);
+
+    public: /*methods*/
+        virtual void start();
+        virtual double update(double delta, double ref, array_view<Input> const& inputs);
+        virtual void stop();
+
+    private:
+        double m_output;
+        bool m_running;
+    };
 }

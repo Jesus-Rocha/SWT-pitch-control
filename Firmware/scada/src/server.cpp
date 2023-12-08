@@ -1,6 +1,24 @@
+/* 
+ * This file is part of the SWT-pitch-control distribution (https://github.com/Jesus-Rocha/SWT-pitch-control).
+ * Copyright (c) 2023 Jesus Angel Rocha Morales.
+ * 
+ * This program is free software: you can redistribute it and/or modify  
+ * it under the terms of the GNU General Public License as published by  
+ * the Free Software Foundation, version 3.
+ *
+ * This program is distributed in the hope that it will be useful, but 
+ * WITHOUT ANY WARRANTY; without even the implied warranty of 
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License 
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "scada.h"
 
 using namespace scada;
+
 
 void Entry::updateServer()
 {
@@ -19,24 +37,17 @@ bool temp = false;
             m_hostState = HostState::CONNECTING;
             temp = true;
         });
-
-        //if (temp)
-        //    m_waitTimer.framesPerSecond(100);
         break;
 
     case HostState::CONNECTING:
-        //m_waitTimer.tick([&]()
-        //{
-            if(!m_wifiManager.autoConnect("TUNNEL_CONNECT_AP",""))
-            {
-                return;
-            }
-            m_hostState = HostState::WAIT_FOR_CONNECTION;
-            temp = true;
-       // });
+        if(!m_wifiManager.autoConnect("TUNNEL_CONNECT_AP",""))
+        {
+            return;
+        }
+        m_hostState = HostState::WAIT_FOR_CONNECTION;
+        temp = true;
         
         if (temp) {
-            //m_waitTimer.framesPerSecond(100);
             m_waitTimer.reset();
         }
         break;
@@ -47,14 +58,8 @@ bool temp = false;
             if(WiFi.status() == WL_CONNECTED)
             {
                 postTask([=]() { 
-                    //m_lcd.clear();
-                    //m_lcd.setCursor(0,0);
-                    //m_lcd.print(String("WiFi:") + WiFi.SSID()); 
                     m_lcd.setCursor(0,0);
                     m_lcd.print(String("IP: ") + WiFi.localIP().toString()); 
-
-                    //debug_print(String("\nConnected to ") + WiFi.SSID() + "\n");
-                    //debug_print(String("IP address: ") + WiFi.localIP().toString() + "\n");
                 });
                 
                 m_hostState = HostState::INIT_MDNS;
@@ -97,17 +102,17 @@ bool temp = false;
 
             if(!m_serverInitialized){
                 m_serverInitialized = true;
-                m_server.on("/", HTTP_GET, [this](){ this->onHandleRoot(); });
-                m_server.on("/connectionData", HTTP_GET,[this](){ this->onConnectionInfo(); });
-                m_server.on("/systemInfo", HTTP_GET, [this](){ this->onSystemStateInfo(); });
-                m_server.on("/systemParam", HTTP_GET, [this](){ this->onSystemStateParam(); }); 
-                m_server.on("/controlState", HTTP_GET, [this](){ this->onControlStateInfo(); });
-                m_server.on("/controlParam", HTTP_GET, [this](){ this->onControlStateParam(); }); 
-                m_server.on("/systemCommand", HTTP_GET, [this](){ this->onSystemCommand(); }); 
-                m_server.onNotFound([this](){ this->onHandleWebRequests(); }); //Set server all paths are not found so we can handle as per URI
-                m_server.on("/controller", HTTP_POST, [this](){});
+                m_server.on("/", HTTP_GET, [this](AsyncWebServerRequest* request){ this->onHandleRoot(request); });
+                m_server.on("/connectionData", HTTP_GET,[this](AsyncWebServerRequest* request){ this->onConnectionInfo(request); });
+                m_server.on("/systemInfo", HTTP_GET, [this](AsyncWebServerRequest* request){ this->onSystemStateInfo(request); });
+                m_server.on("/systemParam", HTTP_GET, [this](AsyncWebServerRequest* request){ this->onSystemStateParam(request); }); 
+                m_server.on("/controlState", HTTP_GET, [this](AsyncWebServerRequest* request){ this->onControlStateInfo(request); });
+                m_server.on("/controlParam", HTTP_GET, [this](AsyncWebServerRequest* request){ this->onControlStateParam(request); }); 
+                m_server.on("/systemCommand", HTTP_GET, [this](AsyncWebServerRequest* request){ this->onSystemCommand(request); }); 
+                m_server.onNotFound([this](AsyncWebServerRequest* request){ this->onHandleWebRequests(request); }); //Set server all paths are not found so we can handle as per URI
+                m_server.on("/controller", HTTP_POST, [this](AsyncWebServerRequest* request){});
             }
-            m_server.close();
+            m_server.end();
             m_server.begin();         
             m_hostState = HostState::LISTENING; });
 
@@ -123,22 +128,22 @@ bool temp = false;
         }
         else
         {
-            m_server.handleClient();
+            //m_server.handleClient();
         }
         break;
     };
 }
 
-void Entry::onHandleRoot()
-{
-    m_server.sendHeader("Location", "/index.html", true); // Redirect to our html web page
-    m_server.send(302, "text/plane", "");
+void Entry::onHandleRoot(AsyncWebServerRequest* request)
+{ 
+    request->redirect("/index.html"); // Redirect to our html web page
+    request->send(302, "text/plane", "");
 }
 
-void Entry::onHandleWebRequests()
+void Entry::onHandleWebRequests(AsyncWebServerRequest* request)
 {
     String dataType = "text/plain";
-    String path = m_server.uri();
+    String path = request->url();
     if (path.endsWith("/"))
         path += "index.htm";
 
@@ -170,12 +175,12 @@ void Entry::onHandleWebRequests()
         dataType = "application/zip";
 
     Serial.println(path);
-    File dataFile = SPIFFS.open(path.c_str(), "r");
-    m_server.streamFile(dataFile, dataType);
-    // m_server.send(SPIFFS, path, dataType);
+    //File dataFile = SPIFFS.open(path.c_str(), "r");
+    //m_server.streamFile(dataFile, dataType);
+     request->send(SPIFFS, path, dataType);
 }
 
-void Entry::onConnectionInfo()
+void Entry::onConnectionInfo(AsyncWebServerRequest* request)
 {
     String json;
     StaticJsonDocument<500> root;
@@ -190,10 +195,10 @@ void Entry::onConnectionInfo()
     root["IPAddress"] = String() + ip[0] + "." + ip[1] + "." + ip[2] + "." + ip[3];
     root["SubnetMask"] = String() + mask[0] + "." + mask[1] + "." + mask[2] + "." + mask[3];
     serializeJson(root, json);
-    m_server.send(200, "text/json", json);
+    request->send(200, "text/json", json);
 }
 
-void Entry::onSystemStateInfo()
+void Entry::onSystemStateInfo(AsyncWebServerRequest* request)
 {
     String json;
     StaticJsonDocument<500> root;
@@ -207,25 +212,25 @@ void Entry::onSystemStateInfo()
     //root["SaveData"] = getSaveData();
 
     serializeJson(root, json);
-    m_server.send(200, "text/json", json);
+    request->send(200, "text/json", json);
 }
 
-void Entry::onSystemStateParam()
+void Entry::onSystemStateParam(AsyncWebServerRequest* request)
 {
-    onSystemStateInfo();
+    onSystemStateInfo(request);
 }
 
-void Entry::onControlStateInfo()
+void Entry::onControlStateInfo(AsyncWebServerRequest* request)
 {
-    onSystemStateInfo();
+    onSystemStateInfo(request);
 }
 
-void Entry::onControlStateParam()
+void Entry::onControlStateParam(AsyncWebServerRequest* request)
 {
-    onSystemStateInfo();
+    onSystemStateInfo(request);
 }
 
-void Entry::onSystemCommand()
+void Entry::onSystemCommand(AsyncWebServerRequest* request)
 {
-    onSystemStateInfo();
+    onSystemStateInfo(request);
 }
