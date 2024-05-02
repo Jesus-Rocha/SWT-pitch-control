@@ -26,6 +26,121 @@ namespace scada
         FUZZY
     };
 
+   /*Gpi(s) = Kp(1 + 1/(Ti s))*/
+    class PIOperator
+    {
+    public:
+        inline PIOperator()
+            : m_Kp(1)
+            , m_Ti(1)
+            , m_sigma(0)
+        {}
+
+        inline void reset() {
+            m_sigma = 0;
+            m_error = 0;
+        }
+        inline void resetSigma() { m_sigma = 0; }
+        inline  double getKp()const { return m_Kp; }
+        inline double getTi()const { return m_Ti; }
+        inline double getSigma()const { return m_sigma; }
+
+        inline void setKp(double value) { m_Kp = value; }
+        inline void setTi(double value) { m_Ti = value; }
+
+        inline PIOperator& operate(double dt, double error){
+            m_sigma = error*dt + m_sigma;
+            m_error = error;
+            return*this;
+        }
+        inline PIOperator& operator()(double dt, double error){ return operate(dt, error); }
+        inline operator double()const{ return m_Kp*(m_error + m_sigma/m_Ti); }
+
+    private:
+        double m_Kp, m_Ti;
+        double m_error;
+        double m_sigma;
+    };
+
+   /*Gpd(s) = Kp(1 + Td s)*/
+    class PDOperator
+    {
+    public:
+        inline PDOperator()
+            : m_Kp(1)
+            , m_Td(1)
+            , m_delta(0)
+        {}
+
+        inline void reset() {
+            m_delta = 0;
+            m_error = 0;
+        }
+        inline  double getKp()const { return m_Kp; }
+        inline double getTd()const { return m_Td; }
+        inline double getDelta()const { return m_delta; }
+
+        inline void setKp(double value) { m_Kp = value; }
+        inline void setTd(double value) { m_Td = value; }
+
+        inline PDOperator& operate(double dt, double error){
+            m_delta = (error - m_error)/dt;
+            m_error = error;
+            return*this;
+        }
+        inline PDOperator& operator()(double dt, double error){ return operate(dt, error); }
+        inline operator double()const{ return m_Kp*(m_error + m_delta*m_Td); }
+
+    private:
+        double m_Kp, m_Td;
+        double m_error;
+        double m_delta;
+    };
+
+    /*Gpid(s) = Kp(1 + 1/(Ti s) + Td s)*/
+    class PIDOperator
+    {
+    public:
+        inline PIDOperator()
+            : m_Kp(1)
+            , m_Ti(1)
+            , m_Td(1)
+            , m_delta(0)
+            , m_sigma(0)
+        {}
+
+        inline void reset() {
+            m_sigma = 0;
+            m_delta = 0;
+            m_error = 0;
+        }
+        inline void resetSigma() { m_sigma = 0; }
+        inline  double getKp()const { return m_Kp; }
+        inline double getTi()const { return m_Ti; }
+        inline double getTd()const { return m_Td; }
+        inline double getSigma()const { return m_sigma; }
+        inline double getDelta()const { return m_delta; }
+
+        inline void setKp(double value) { m_Kp = value; }
+        inline void setTi(double value) { m_Ti = value; }
+        inline void setTd(double value) { m_Td = value; }
+
+        inline PIDOperator& operate(double dt, double error){
+            m_sigma = error*dt + m_sigma;
+            m_delta = (error - m_error)/dt;
+            m_error = error;
+            return*this;
+        }
+        inline PIDOperator& operator()(double dt, double error){ return operate(dt, error); }
+        inline operator double()const{ return m_Kp*(m_error + m_sigma/m_Ti + m_delta*m_Td); }
+
+    private:
+        double m_Kp, m_Ti, m_Td;
+        double m_error;
+        double m_delta;
+        double m_sigma;
+    };
+
     class Controller
     {
     public:
@@ -112,10 +227,7 @@ namespace scada
     private:
         bool m_running;
         double m_output;
-        double m_K1, m_K2, m_K3;
-        double m_sigma, m_e1;
-        double m_yr, m_dyr;
-        double m_reference;
+        PIDOperator m_pid;
     };
 
 }

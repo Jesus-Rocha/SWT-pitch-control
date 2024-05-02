@@ -40,7 +40,7 @@ bool temp = false;
         break;
 
     case HostState::CONNECTING:
-        if(!m_wifiManager.autoConnect("TUNNEL_CONNECT_AP",""))
+        if(!m_wifiManager.autoConnect("SCADA_WT_AP",""))
         {
             return;
         }

@@ -19,8 +19,6 @@
 
 using namespace scada;
 
-
-
 //////////////////////////////////////////////////////////////////
 Controller::Controller()
 {
@@ -150,14 +148,7 @@ void OpenLoopController::stop()
 PIDController::PIDController()
     : m_running(false)
     , m_output(0)
-    , m_K1(0.1)
-    , m_K2(0.01)
-    , m_K3(0)
-    , m_sigma(0)
-    , m_e1(0)
-    , m_yr(0)
-    , m_dyr(0)
-    , m_reference(0)
+    , m_pid()
 {
 
 }
@@ -187,11 +178,11 @@ double PIDController::getParam(uint32_t index)const
     switch (index)
     {
     case 0:
-        return m_K1;
+        return m_pid.getKp();
     case 1:
-        return m_K2;
+        return m_pid.getTi();
     case 2:
-        return m_K3;
+        return m_pid.getTd();
     default:
         return 0;
     }
@@ -202,13 +193,13 @@ void PIDController::setParam(uint32_t index, double value)
     switch (index)
     {
     case 0:
-        m_K1 = abs(value);//positive values only
+        m_pid.setKp(abs(value));//positive values only
         break;
     case 1:
-        m_K2 = abs(value);//positive values only
+        m_pid.setTi(abs(value));//positive values only
         break;
     case 2:
-        m_K3 = abs(value);//positive values only
+        m_pid.setTd(abs(value));//positive values only
         break;
     default:
         break;
@@ -219,41 +210,15 @@ void PIDController::start()
 {
     if(m_running)
         return;
+    m_pid.reset();
     m_running = true;
-    m_sigma = 0;
-    m_e1 = 0;
-    m_yr = 0;
-    m_dyr = 0;
-    m_reference = 0;
 }
 
 double PIDController::update(double dt, double yr, array_view<Input> const& ys)
 {
-    static constexpr double a = 0.705261382745352;
-    static constexpr double b = 3.222119974954683;
-    static constexpr double c = 1.956276376964970;
-    static constexpr double _delay = 10.0;
-
-    m_reference =  (m_reference < yr)? m_reference + dt/_delay :
-        (m_reference > yr)? m_reference - dt/_delay : m_reference;
-
-    double dyr;
-    double d2yr;
-    double e2;
-    double e1 = ys.data()[0] - m_reference;
-
-    dyr = (m_reference - m_yr) / dt;
-    d2yr = (dyr - m_dyr) / dt;
-
-    m_sigma = m_sigma + e1 * dt;
-    e2 = (e1 - m_e1) / dt;
-
-    m_e1 = e1;
-    m_yr = m_reference;
-    m_dyr = dyr;
-
-    m_output = (a*m_reference + b*dyr + d2yr - m_K1*m_sigma - m_K2*e1 - m_K3*e2) / c;
-
+    double e = yr - ys.data()[0];
+    m_pid(dt, e);
+    m_output = m_pid;
     return m_output = max(min(m_output, 5.0), 0.0);
 }
 
